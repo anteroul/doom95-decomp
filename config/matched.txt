@@ -1,0 +1,2 @@
+# Functions whose decompiled C compiles to the original bytes, one name per line
+# (the "name" column of symbols.csv). tools/progress.py reads this file.

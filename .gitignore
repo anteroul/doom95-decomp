@@ -1,0 +1,29 @@
+# Original game files are never committed: everyone supplies their own copy.
+orig/*
+!orig/README.md
+
+# Build output and generated files
+build/
+*.obj
+*.o
+*.lib
+*.exe
+*.dll
+*.err
+*.map
+
+# Game data
+*.wad
+*.WAD
+
+# Ghidra projects
+*.gpr
+*.rep/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editors
+.vs/
+.vscode/
