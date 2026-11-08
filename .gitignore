@@ -4,6 +4,7 @@ orig/*
 
 # Build output and generated files
 build/
+out/
 *.obj
 *.o
 *.lib

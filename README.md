@@ -39,11 +39,14 @@ config/       doom95.sha1   supported executable
 src/game/     modules based on the linuxdoom source
 src/win32/    Microsoft's Windows layer
 include/      headers
+include/compat/  shims so the linuxdoom code builds with MSVC (functional build only)
 tools/        verify_orig.py  check orig/DOOM95.EXE
               split.py        cut the exe into per-function .bin files under build/split/
               progress.py     matched functions/bytes, overall and per module
               watcom_syms.py  regenerate symbols.csv from the exe's debug info
-              fix_pe_for_ghidra.py, ghidra/ImportDoom95Symbols.java   Ghidra setup
+              fix_pe_for_ghidra.py, ghidra/ImportDoom95Symbols.java,
+              ghidra/ApplyWatcomCallingConvention.java   Ghidra setup
+CMakeLists.txt  functional MSVC build (see below)
 orig/         your DOOM95.EXE (git-ignored)
 build/        generated files (git-ignored)
 ```
@@ -60,8 +63,69 @@ build/        generated files (git-ignored)
    ```
 3. For Ghidra: `python tools/fix_pe_for_ghidra.py orig/DOOM95.EXE build/DOOM95_analysis.exe`,
    import `build/DOOM95_analysis.exe`, then run `tools/ghidra/ImportDoom95Symbols.java` with
-   `config/symbols.csv`.
-4. Keep id's source (github.com/id-Software/DOOM) next to you as a reference. It isn't vendored here.
+   `config/symbols.csv`. Then run `tools/ghidra/ApplyWatcomCallingConvention.java` with the
+   same CSV. Ghidra has no Watcom register convention, so without this step calls lose their
+   arguments (`M_CheckParm()` instead of `M_CheckParm("-nomonsters")`). The script adds a
+   `__watcall` prototype and applies it:
+   - to the ~925 `Foo_` and `W?...` functions
+   - `__stdcall` stays on the Windows callbacks
+   - `__cdecl` goes on the C library varargs functions (`printf_`, ...)
+
+   It then re-runs parameter detection, which takes a few minutes. A few C library signatures
+   still need setting by hand, for example `int printf(char *, ...)`.
+4. Keep id's source (github.com/id-Software/DOOM) next to you as a reference. It isn't vendored
+   here; `src/game/` and `include/` start as copies of its linuxdoom-1.10 files (commit `a77dfb9`).
+
+## Functional build
+
+Alongside the matching work, `CMakeLists.txt` builds the current sources with MSVC into a
+runnable `doom95.exe`. It checks that decompiled code actually works, and it gives the Windows
+layer somewhere to grow. It is not byte-matching, and it is not the Watcom build.
+
+Needs Visual Studio 2022 or 2026 with the C++ workload. Only a 32-bit build is supported,
+because the engine keeps pointers in `int`s.
+
+```
+cmake --preset vs-win32
+cmake --build --preset vs-win32-debug
+set DOOMWADDIR=orig
+build\cmake\Debug\doom95.exe -timedemo demo1
+```
+
+In Visual Studio, use **Open Folder** and pick the **x86 Debug** configuration from
+`CMakePresets.json`. It builds into `out/build/x86-debug/`. VS's default x64 configuration
+stops with "Build 32-bit".
+
+- **What works:** all of startup. The IWAD demos play to the end under `-timedemo`, which
+  exits with `timed N gametics in M realtics`. Reaching the end doesn't prove a demo stayed in
+  sync; that can only be checked once video works.
+- **Still stubs:** `src/win32/` has a console `main()` instead of WinMain, a real timer, and
+  single-player networking only. There is no video, input or sound yet.
+- **Finding WADs:** IWADs are looked up in `DOOMWADDIR`, and the first of doom2f, doom2,
+  plutonia, tnt, doomu, doom, doom1 wins.
+- **Crashes** print the call stack with file:line.
+- `include/compat/doom95_compat.h` is force-included into every file. With the shim headers
+  next to it, it lets the linuxdoom code build without edits.
+
+Every change to a linuxdoom file in `src/game/` or `include/` carries a tag, so a diff
+against id's source shows only deliberate changes:
+
+- `DOOM95:` means the decompile shows Doom95 does this differently. Say what showed it.
+  - `doomdef.h`: `VERSION` 110 → 109. `D_DoomMain` prints `v%i.%i` with 1, 9, and the 1.9
+    IWAD demos play back.
+- `DOOM95-SKELETON:` means a workaround for this build that Doom95 does not do.
+  - `info.c`/`info.h`: a NULL terminator for `sprnames`. Doom95's table is exactly 138
+    pointers. `R_InitSpriteDefs` only stops on the zero that `states[0]` happens to put after
+    it, and MSVC's data layout doesn't give that.
+
+Known warnings:
+
+- `g_game.c:459`: an id bug. `gamemode` is compared with `GameMission_t` values, so the
+  TNT/Plutonia sky check never matches. Check whether Doom95 has it too.
+- `w_wad.c`: `O_BINARY` redefined to 0. `doom95.c` sets binary as the default file mode.
+
+`src/game/` still uses linuxdoom's file split (`m_argv.c`, `f_wipe.c`, `p_saveg.c`, ...).
+Doom95's modules merge some of these (see above), which still has to be done.
 
 ## Next step
 

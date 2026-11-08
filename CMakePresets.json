@@ -1,0 +1,41 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "x86-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "architecture": { "value": "x86", "strategy": "external" },
+      "cacheVariables": { "CMAKE_C_COMPILER": "cl.exe" },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "x86-debug",
+      "displayName": "x86 Debug",
+      "inherits": "x86-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "x86-release",
+      "displayName": "x86 Release",
+      "inherits": "x86-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    },
+    {
+      "name": "vs-win32",
+      "displayName": "Visual Studio solution (Win32)",
+      "description": "Command-line build: generates a .sln under build/cmake",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "Win32",
+      "binaryDir": "${sourceDir}/build/cmake",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "x86-debug", "configurePreset": "x86-debug" },
+    { "name": "x86-release", "configurePreset": "x86-release" },
+    { "name": "vs-win32-debug", "displayName": "Win32 Debug", "configurePreset": "vs-win32", "configuration": "Debug" }
+  ]
+}
